@@ -3,9 +3,9 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
 import { createGunzip } from 'node:zlib';
-import { decode, type Decoded } from './gt06/decode.ts';
-import { Gt06Framer } from './gt06/framer.ts';
-import { replyFor } from './gt06/reply.ts';
+import { decode, type Decoded } from '../protocols/gt06/decode.ts';
+import { Gt06Framer } from '../protocols/gt06/framer.ts';
+import { replyFor } from '../protocols/gt06/reply.ts';
 
 interface Connection {
   framer: Gt06Framer;

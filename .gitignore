@@ -3,3 +3,4 @@ dist/
 test/
 .vscode/
 .prettierrc.json
+.env
