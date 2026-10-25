@@ -29,11 +29,17 @@
   },
   "packageManager": "pnpm@12.15.0",
   "dependencies": {
-    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.2.0"
+    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.2.0",
+    "@nats-io/jetstream": "3.4.0",
+    "@nats-io/transport-node": "3.4.0",
+    "pg": "8.23.1",
+    "pino": "10.4.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "^24.19.2",
+    "@types/pg": "8.23.1",
     "eslint": "10.13.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.72.0"
