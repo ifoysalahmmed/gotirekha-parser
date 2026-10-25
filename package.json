@@ -1,0 +1,40 @@
+{
+  "name": "gotirekha-parser",
+  "version": "0.0.0",
+  "description": "Talks to GPS trackers: frames, decodes, replies, publishes records",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc",
+    "lint": "eslint .",
+    "test": "node --test \"test/**/*.test.ts\""
+  },
+  "author": {
+    "name": "Foysal Ahmmed Limon",
+    "url": "https://github.com/ifoysalahmmed",
+    "email": "ifoysalahmmed@gmail.com"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=24"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.15.0",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.15.0",
+  "dependencies": {
+    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.1.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "10.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.0"
+  }
+}
