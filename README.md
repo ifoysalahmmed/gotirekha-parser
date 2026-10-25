@@ -22,6 +22,7 @@ Imports name the real file; there are no `index.ts` files that only re-export.
 - `pnpm lint`: run ESLint.
 - `pnpm test`: run the tests with Node's own runner (Node runs the `.ts` files directly).
 - `pnpm replay <file>`: replay a capture through the framer and decoder and print a report.
+- `pnpm start`: run the parser with the settings in `.env` (copy `.env.example`).
 
 ## Schemas
 

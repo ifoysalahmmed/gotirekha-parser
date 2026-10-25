@@ -9,7 +9,8 @@
     "typecheck": "tsc",
     "lint": "eslint .",
     "test": "node --test \"test/**/*.test.ts\"",
-    "replay": "node src/tools/replay.ts"
+    "replay": "node src/tools/replay.ts",
+    "start": "node --env-file=.env src/main.ts"
   },
   "author": {
     "name": "Foysal Ahmmed Limon",
