@@ -29,7 +29,7 @@
   },
   "packageManager": "pnpm@12.15.0",
   "dependencies": {
-    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.1.0"
+    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.2.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
