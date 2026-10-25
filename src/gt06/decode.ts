@@ -30,6 +30,20 @@ export type Decoded =
     }
   | { kind: 'rejected'; reason: RejectReason; detail: string };
 
+interface Power {
+  ignition: boolean | null;
+  externalVoltage: number | null;
+  batteryLevel: number | null;
+  gsmSignal: number | null;
+}
+
+const NO_POWER: Power = {
+  ignition: null,
+  externalVoltage: null,
+  batteryLevel: null,
+  gsmSignal: null,
+};
+
 export const decode = (frame: Gt06Frame, ctx: DecodeContext): Decoded => {
   const { protocol, content } = frame;
 
@@ -89,33 +103,50 @@ const location = (
   content: Buffer,
   ctx: DecodeContext,
 ): Decoded => {
-  const lengths = protocol === 0x12 ? [26] : [29, 33];
+  if (protocol === 0x22) {
+    if (content.length !== 29 && content.length !== 33) {
+      return wrongLength(protocol, content);
+    }
 
-  if (!lengths.includes(content.length)) {
-    return wrongLength(protocol, content);
+    return position(
+      content,
+      ctx,
+      {
+        ...NO_POWER,
+        ignition: accByte(content.readUInt8(26)),
+      },
+      null,
+    );
   }
 
-  const gps = readGps(content, 6);
-  const acc = protocol === 0x22 ? content.readUInt8(26) : null;
+  switch (ctx.variant) {
+    case 's06a':
+      if (content.length !== 31) {
+        return wrongLength(protocol, content);
+      }
 
-  return checked(
-    ctx,
-    {
-      kind: 'position',
-      deviceTime: readTime(content, 0),
-      lat: gps.lat,
-      lon: gps.lon,
-      speedKmh: gps.speedKmh,
-      course: gps.course,
-      satellites: gps.satellites,
-      gpsFixed: gps.gpsFixed,
-      ignition: acc === null ? gps.courseAcc : accByte(acc),
-      externalVoltage: null,
-      batteryLevel: null,
-      gsmSignal: null,
-    },
-    null,
-  );
+      return position(content, ctx, s06aStatus(content, 26), null);
+    case 's102a':
+      if (content.length !== 30) {
+        return wrongLength(protocol, content);
+      }
+
+      return position(content, ctx, gt06Status(content, 26), null);
+    default:
+      if (content.length !== 26) {
+        return wrongLength(protocol, content);
+      }
+
+      return position(
+        content,
+        ctx,
+        {
+          ...NO_POWER,
+          ignition: readGps(content, 6).courseAcc,
+        },
+        null,
+      );
+  }
 };
 
 const heartbeat = (content: Buffer, ctx: DecodeContext): Decoded => {
@@ -123,15 +154,20 @@ const heartbeat = (content: Buffer, ctx: DecodeContext): Decoded => {
     return wrongLength(0x13, content);
   }
 
+  const power =
+    ctx.variant === 's06a'
+      ? s06aStatus(content, 0)
+      : {
+          ...gt06Status(content, 0),
+          externalVoltage:
+            ctx.variant === 'et27' ? content.readUInt8(3) / 10 : null,
+        };
+
   return checked(
     ctx,
     {
       kind: 'status',
-      ignition: (content.readUInt8(0) & 0x02) !== 0,
-      externalVoltage:
-        ctx.variant === 'et27' ? content.readUInt8(3) / 10 : null,
-      batteryLevel: batteryPercent(content.readUInt8(1)),
-      gsmSignal: gsmPercent(content.readUInt8(2)),
+      ...power,
     },
     null,
   );
@@ -142,32 +178,21 @@ const alarm = (
   content: Buffer,
   ctx: DecodeContext,
 ): Decoded => {
+  if (protocol === 0x16 && ctx.variant === 's06a') {
+    if (content.length !== 31) {
+      return wrongLength(protocol, content);
+    }
+
+    return position(content, ctx, s06aStatus(content, 26), null);
+  }
+
   const lengths = protocol === 0x16 ? [32] : [32, 36];
 
   if (!lengths.includes(content.length)) {
     return wrongLength(protocol, content);
   }
 
-  const gps = readGps(content, 6);
-
-  return checked(
-    ctx,
-    {
-      kind: 'position',
-      deviceTime: readTime(content, 0),
-      lat: gps.lat,
-      lon: gps.lon,
-      speedKmh: gps.speedKmh,
-      course: gps.course,
-      satellites: gps.satellites,
-      gpsFixed: gps.gpsFixed,
-      ignition: (content.readUInt8(27) & 0x02) !== 0,
-      externalVoltage: null,
-      batteryLevel: batteryPercent(content.readUInt8(28)),
-      gsmSignal: gsmPercent(content.readUInt8(29)),
-    },
-    content.readUInt8(30),
-  );
+  return position(content, ctx, gt06Status(content, 27), content.readUInt8(30));
 };
 
 const information = (content: Buffer, ctx: DecodeContext): Decoded => {
@@ -187,14 +212,51 @@ const information = (content: Buffer, ctx: DecodeContext): Decoded => {
     ctx,
     {
       kind: 'status',
-      ignition: null,
+      ...NO_POWER,
       externalVoltage: content.readUInt16BE(1) / 100,
-      batteryLevel: null,
-      gsmSignal: null,
     },
     null,
   );
 };
+
+const position = (
+  content: Buffer,
+  ctx: DecodeContext,
+  power: Power,
+  alarmCode: number | null,
+): Decoded => {
+  const gps = readGps(content, 6);
+
+  return checked(
+    ctx,
+    {
+      kind: 'position',
+      deviceTime: readTime(content, 0),
+      lat: gps.lat,
+      lon: gps.lon,
+      speedKmh: gps.speedKmh,
+      course: gps.course,
+      satellites: gps.satellites,
+      gpsFixed: gps.gpsFixed,
+      ...power,
+    },
+    alarmCode,
+  );
+};
+
+const gt06Status = (content: Buffer, offset: number): Power => ({
+  ignition: (content.readUInt8(offset) & 0x02) !== 0,
+  externalVoltage: null,
+  batteryLevel: batteryPercent(content.readUInt8(offset + 1)),
+  gsmSignal: gsmPercent(content.readUInt8(offset + 2)),
+});
+
+const s06aStatus = (content: Buffer, offset: number): Power => ({
+  ignition: (content.readUInt8(offset) & 0x02) !== 0,
+  externalVoltage: content.readUInt16BE(offset + 1) / 100,
+  batteryLevel: null,
+  gsmSignal: gsmPercent(content.readUInt8(offset + 3)),
+});
 
 const checked = (
   ctx: DecodeContext,
