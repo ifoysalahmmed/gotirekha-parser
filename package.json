@@ -8,7 +8,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc",
     "lint": "eslint .",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test \"test/**/*.test.ts\"",
+    "replay": "node src/replay.ts"
   },
   "author": {
     "name": "Foysal Ahmmed Limon",
