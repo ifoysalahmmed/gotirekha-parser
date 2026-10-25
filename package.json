@@ -9,7 +9,7 @@
     "typecheck": "tsc",
     "lint": "eslint .",
     "test": "node --test \"test/**/*.test.ts\"",
-    "replay": "node src/replay.ts"
+    "replay": "node src/tools/replay.ts"
   },
   "author": {
     "name": "Foysal Ahmmed Limon",
