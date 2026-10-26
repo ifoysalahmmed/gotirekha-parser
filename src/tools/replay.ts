@@ -53,6 +53,32 @@ const outcomeName = (decoded: Decoded): string => {
   }
 };
 
+const RECORD_HEADER = new Set(['v', 'kind', 'imei', 'receivedAt']);
+
+const frameDetail = (decoded: Decoded): string => {
+  switch (decoded.kind) {
+    case 'login':
+      return '';
+    case 'record': {
+      const fields = Object.fromEntries(
+        Object.entries(decoded.record).filter(
+          ([key]) => !RECORD_HEADER.has(key),
+        ),
+      );
+      const alarm =
+        decoded.alarm === null ? '' : ` alarm ${protocolName(decoded.alarm)}`;
+
+      return `${JSON.stringify(fields)}${alarm}`;
+    }
+    case 'ignored':
+      return decoded.alarm === null
+        ? ''
+        : `alarm ${protocolName(decoded.alarm)}`;
+    case 'rejected':
+      return decoded.detail;
+  }
+};
+
 const sanityProblems = (record: PositionRecord): string[] => {
   const problems: string[] = [];
 
@@ -164,13 +190,15 @@ const main = async (): Promise<void> => {
     options: {
       variant: { type: 'string' },
       imei: { type: 'string' },
+      frames: { type: 'boolean' },
     },
   });
   const [file] = positionals;
+  const showFrames = values.frames === true;
 
   if (file === undefined) {
     console.error(
-      'usage: pnpm replay <file.jsonl | file.gz> [--variant et27|s06a|s102a] [--imei <imei>]',
+      'usage: pnpm replay <file.jsonl | file.gz> [--variant et27|s06a|s102a] [--imei <imei>] [--frames]',
     );
     process.exitCode = 1;
 
@@ -223,7 +251,7 @@ const main = async (): Promise<void> => {
     if (connection === undefined) {
       connection = {
         framer: new Gt06Framer(),
-        imei: startImei,
+        imei: startImei ?? (typeof line.imei === 'string' ? line.imei : null),
       };
       connections.set(peer, connection);
     }
@@ -236,6 +264,18 @@ const main = async (): Promise<void> => {
 
     for (const output of outputs) {
       if (output.type === 'discard') {
+        if (showFrames) {
+          console.log(
+            [
+              time,
+              connection.imei ?? '-',
+              'discard',
+              output.reason,
+              (output.candidate ?? output.bytes).toString('hex'),
+            ].join(' '),
+          );
+        }
+
         count(
           discards,
           output.reason,
@@ -270,6 +310,21 @@ const main = async (): Promise<void> => {
         connection.imei = decoded.imei;
       }
 
+      if (showFrames) {
+        console.log(
+          [
+            time,
+            connection.imei ?? '-',
+            protocol,
+            outcomeName(decoded),
+            frame.raw.toString('hex'),
+            frameDetail(decoded),
+          ]
+            .join(' ')
+            .trimEnd(),
+        );
+      }
+
       if (decoded.kind === 'record' || decoded.kind === 'ignored') {
         if (decoded.alarm !== null) {
           count(alarms, `${protocol} alarm ${protocolName(decoded.alarm)}`);
@@ -300,6 +355,10 @@ const main = async (): Promise<void> => {
         }
       }
     }
+  }
+
+  if (showFrames) {
+    return;
   }
 
   console.log(`file: ${file}`);
