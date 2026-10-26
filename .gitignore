@@ -4,3 +4,4 @@ test/
 .vscode/
 .prettierrc.json
 .env
+frames/
