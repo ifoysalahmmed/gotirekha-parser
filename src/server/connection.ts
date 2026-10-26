@@ -11,10 +11,14 @@ import {
 import { replyFor } from '../protocols/gt06/reply.ts';
 import type { PublishWindow } from '../queue/publish-window.ts';
 import { messageId, type Publish } from '../queue/queue.ts';
+import type { ByteBucket } from './byte-bucket.ts';
 import type { Stats } from './stats.ts';
 
 export interface ConnectionDeps {
   port: number;
+  loginDeadlineMs: number;
+  idleTimeoutMs: number;
+  bucket: ByteBucket;
   lookup: (imei: string) => Device | undefined;
   publish: Publish;
   window: PublishWindow;
@@ -33,6 +37,9 @@ export class DeviceConnection {
   #imei: string | null = null;
   #variant: Variant | null = null;
   #closed = false;
+  #windowPaused = false;
+  #loginTimer: NodeJS.Timeout | null;
+  #throttleTimer: NodeJS.Timeout | null = null;
 
   constructor(socket: Socket, deps: ConnectionDeps) {
     this.peer = `${socket.remoteAddress ?? '?'}:${String(socket.remotePort ?? 0)}`;
@@ -40,8 +47,17 @@ export class DeviceConnection {
     this.#socket = socket;
     this.#deps = deps;
 
+    this.#loginTimer = setTimeout(() => {
+      deps.stats.loginDeadlines += 1;
+      this.close('no login before the deadline');
+    }, deps.loginDeadlineMs);
+
     socket.on('data', (chunk: Buffer) => {
       this.#onData(chunk);
+    });
+
+    socket.on('timeout', () => {
+      this.#onIdle();
     });
 
     socket.on('error', (err) => {
@@ -57,6 +73,7 @@ export class DeviceConnection {
 
     socket.on('close', () => {
       this.#closed = true;
+      this.#clearTimers();
       deps.onClose(this);
     });
   }
@@ -69,12 +86,9 @@ export class DeviceConnection {
     this.#variant = variant;
   }
 
-  pause(): void {
-    this.#socket.pause();
-  }
-
-  resume(): void {
-    this.#socket.resume();
+  setWindowPaused(paused: boolean): void {
+    this.#windowPaused = paused;
+    this.#updateFlow();
   }
 
   close(reason: string): void {
@@ -83,7 +97,10 @@ export class DeviceConnection {
     }
 
     this.#closed = true;
-    this.#deps.logger.info(
+
+    const level = this.#imei === null ? 'debug' : 'info';
+
+    this.#deps.logger[level](
       {
         peer: this.peer,
         imei: this.#imei,
@@ -122,6 +139,75 @@ export class DeviceConnection {
         );
       }
     }
+
+    if (this.#imei !== null && !this.#closed) {
+      this.#take(chunk.length);
+    }
+  }
+
+  #take(bytes: number): void {
+    const { bucket, stats, logger } = this.#deps;
+    const waitMs = bucket.take(bytes);
+
+    if (waitMs === 0) {
+      return;
+    }
+
+    stats.throttled += 1;
+    logger.debug(
+      {
+        peer: this.peer,
+        imei: this.#imei,
+        waitMs,
+      },
+      'connection throttled',
+    );
+
+    if (this.#throttleTimer !== null) {
+      clearTimeout(this.#throttleTimer);
+    }
+
+    this.#throttleTimer = setTimeout(() => {
+      this.#throttleTimer = null;
+      this.#updateFlow();
+    }, waitMs);
+
+    this.#updateFlow();
+  }
+
+  #updateFlow(): void {
+    if (this.#closed) {
+      return;
+    }
+
+    if (this.#windowPaused || this.#throttleTimer !== null) {
+      this.#socket.pause();
+    } else {
+      this.#socket.resume();
+    }
+  }
+
+  #onIdle(): void {
+    if (this.#windowPaused || this.#throttleTimer !== null) {
+      this.#socket.setTimeout(this.#deps.idleTimeoutMs);
+
+      return;
+    }
+
+    this.#deps.stats.idleTimeouts += 1;
+    this.close('idle timeout');
+  }
+
+  #clearTimers(): void {
+    if (this.#loginTimer !== null) {
+      clearTimeout(this.#loginTimer);
+      this.#loginTimer = null;
+    }
+
+    if (this.#throttleTimer !== null) {
+      clearTimeout(this.#throttleTimer);
+      this.#throttleTimer = null;
+    }
   }
 
   #onDiscard(discard: Discard): void {
@@ -142,6 +228,11 @@ export class DeviceConnection {
       },
       'bytes discarded',
     );
+
+    if (this.#imei === null) {
+      stats.junkBeforeLogin += 1;
+      this.close('junk before login');
+    }
   }
 
   #onFrame(frame: Gt06Frame, receivedAt: Date): void {
@@ -224,6 +315,12 @@ export class DeviceConnection {
       return;
     }
 
+    if (this.#loginTimer !== null) {
+      clearTimeout(this.#loginTimer);
+      this.#loginTimer = null;
+    }
+
+    this.#socket.setTimeout(this.#deps.idleTimeoutMs);
     this.#imei = imei;
     this.#variant = device.variant;
     stats.logins += 1;
