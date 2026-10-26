@@ -2,6 +2,7 @@ import { createServer, type Server, type Socket } from 'node:net';
 import { setTimeout as sleep } from 'node:timers/promises';
 import type { Logger } from 'pino';
 import type { Registry } from '../database/registry.ts';
+import type { FrameLog } from '../disk/frame-log.ts';
 import { PublishWindow } from '../queue/publish-window.ts';
 import type { Publish } from '../queue/queue.ts';
 import { ByteBucket } from './byte-bucket.ts';
@@ -13,6 +14,7 @@ export interface ParserServerOptions {
   host: string;
   registry: Registry;
   publish: Publish;
+  frameLog: FrameLog;
   logger: Logger;
   maxPendingPublishes: number;
   loginDeadlineMs: number;
@@ -156,6 +158,7 @@ export class ParserServer {
         this.#options.rateBytesPerS,
         this.#options.rateBurstBytes,
       ),
+      frameLog: this.#options.frameLog,
       lookup: (imei) => registry.get(imei),
       publish,
       window: this.#window,

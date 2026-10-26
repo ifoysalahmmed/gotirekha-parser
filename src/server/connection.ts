@@ -2,6 +2,7 @@ import type { DeviceRecord, Variant } from '@gotirekha/schemas';
 import type { Socket } from 'node:net';
 import type { Logger } from 'pino';
 import type { Device } from '../database/registry.ts';
+import type { FrameLine, FrameLog } from '../disk/frame-log.ts';
 import { decode } from '../protocols/gt06/decode.ts';
 import {
   Gt06Framer,
@@ -19,6 +20,7 @@ export interface ConnectionDeps {
   loginDeadlineMs: number;
   idleTimeoutMs: number;
   bucket: ByteBucket;
+  frameLog: FrameLog;
   lookup: (imei: string) => Device | undefined;
   publish: Publish;
   window: PublishWindow;
@@ -40,6 +42,8 @@ export class DeviceConnection {
   #windowPaused = false;
   #loginTimer: NodeJS.Timeout | null;
   #throttleTimer: NodeJS.Timeout | null = null;
+  #preLoginChunks: Buffer[] = [];
+  #closeReason: string | null = null;
 
   constructor(socket: Socket, deps: ConnectionDeps) {
     this.peer = `${socket.remoteAddress ?? '?'}:${String(socket.remotePort ?? 0)}`;
@@ -60,7 +64,8 @@ export class DeviceConnection {
       this.#onIdle();
     });
 
-    socket.on('error', (err) => {
+    socket.on('error', (err: NodeJS.ErrnoException) => {
+      this.#closeReason ??= `socket error ${err.code ?? err.message}`;
       deps.logger.debug(
         {
           err,
@@ -74,6 +79,18 @@ export class DeviceConnection {
     socket.on('close', () => {
       this.#closed = true;
       this.#clearTimers();
+
+      if (this.#imei !== null) {
+        this.#log({
+          time: new Date(),
+          imei: this.#imei,
+          peer: this.peer,
+          port: this.port,
+          event: 'close',
+          reason: this.#closeReason ?? 'closed by device',
+        });
+      }
+
       deps.onClose(this);
     });
   }
@@ -97,6 +114,7 @@ export class DeviceConnection {
     }
 
     this.#closed = true;
+    this.#closeReason = reason;
 
     const level = this.#imei === null ? 'debug' : 'info';
 
@@ -113,6 +131,19 @@ export class DeviceConnection {
 
   #onData(chunk: Buffer): void {
     const receivedAt = new Date();
+
+    if (this.#imei === null) {
+      this.#preLoginChunks.push(chunk);
+    } else {
+      this.#log({
+        time: receivedAt,
+        imei: this.#imei,
+        peer: this.peer,
+        port: this.port,
+        dir: 'in',
+        hex: chunk.toString('hex'),
+      });
+    }
 
     for (const output of this.#framer.push(chunk)) {
       if (this.#closed) {
@@ -325,6 +356,24 @@ export class DeviceConnection {
     this.#variant = device.variant;
     stats.logins += 1;
     onLogin(imei, this);
+
+    const line = {
+      time: receivedAt,
+      imei,
+      peer: this.peer,
+      port: this.port,
+    };
+
+    this.#log({
+      ...line,
+      event: 'login',
+    });
+    this.#log({
+      ...line,
+      dir: 'in',
+      hex: Buffer.concat(this.#preLoginChunks).toString('hex'),
+    });
+    this.#preLoginChunks = [];
     this.#write(replyFor(frame, receivedAt));
   }
 
@@ -362,5 +411,22 @@ export class DeviceConnection {
 
     this.#socket.write(bytes);
     this.#deps.stats.replies += 1;
+
+    if (this.#imei !== null) {
+      this.#log({
+        time: new Date(),
+        imei: this.#imei,
+        peer: this.peer,
+        port: this.port,
+        dir: 'out',
+        hex: bytes.toString('hex'),
+      });
+    }
+  }
+
+  #log(line: FrameLine): void {
+    if (!this.#deps.frameLog.write(line)) {
+      this.#deps.stats.frameLogDropped += 1;
+    }
   }
 }
