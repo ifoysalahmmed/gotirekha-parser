@@ -83,6 +83,12 @@ const server = new ParserServer({
   publish: createPublish(nc, config.PUBLISH_TIMEOUT_MS),
   logger,
   maxPendingPublishes: config.MAX_PENDING_PUBLISHES,
+  loginDeadlineMs: config.LOGIN_DEADLINE_S * 1000,
+  preLoginMax: config.PRELOGIN_MAX,
+  preLoginPerIp: config.PRELOGIN_PER_IP,
+  rateBytesPerS: config.RATE_BYTES_PER_S,
+  rateBurstBytes: config.RATE_BURST_BYTES,
+  idleTimeoutMs: config.IDLE_TIMEOUT_S * 1000,
 });
 
 registry.start(config.REGISTRY_RELOAD_S * 1000, (imeis) => {
@@ -112,6 +118,7 @@ const statsTimer = setInterval(() => {
   logger.info(
     {
       connections: server.connectionCount,
+      waiting: server.waitingForLogin,
       online: server.onlineDevices,
       pending: server.pendingPublishes,
       registered: registry.size,

@@ -4,7 +4,9 @@ import type { Logger } from 'pino';
 import type { Registry } from '../database/registry.ts';
 import { PublishWindow } from '../queue/publish-window.ts';
 import type { Publish } from '../queue/queue.ts';
+import { ByteBucket } from './byte-bucket.ts';
 import { DeviceConnection } from './connection.ts';
+import { PreLoginGate } from './pre-login.ts';
 import { createStats, type Stats } from './stats.ts';
 
 export interface ParserServerOptions {
@@ -13,18 +15,26 @@ export interface ParserServerOptions {
   publish: Publish;
   logger: Logger;
   maxPendingPublishes: number;
+  loginDeadlineMs: number;
+  preLoginMax: number;
+  preLoginPerIp: number;
+  rateBytesPerS: number;
+  rateBurstBytes: number;
+  idleTimeoutMs: number;
 }
 
 export class ParserServer {
   readonly stats: Stats = createStats();
   readonly #options: ParserServerOptions;
   readonly #window: PublishWindow;
+  readonly #gate: PreLoginGate;
   readonly #servers: Server[] = [];
   readonly #connections = new Set<DeviceConnection>();
   readonly #byImei = new Map<string, DeviceConnection>();
 
   constructor(options: ParserServerOptions) {
     this.#options = options;
+    this.#gate = new PreLoginGate(options.preLoginMax, options.preLoginPerIp);
     this.#window = new PublishWindow(
       options.maxPendingPublishes,
       () => {
@@ -46,6 +56,10 @@ export class ParserServer {
 
   get pendingPublishes(): number {
     return this.#window.inFlight;
+  }
+
+  get waitingForLogin(): number {
+    return this.#gate.waiting;
   }
 
   async listen(port: number): Promise<void> {
@@ -122,21 +136,40 @@ export class ParserServer {
 
   #accept(socket: Socket, port: number): void {
     const { registry, publish, logger } = this.#options;
+    const ip = socket.remoteAddress ?? 'unknown';
+
+    if (!this.#gate.tryEnter(ip)) {
+      this.stats.preLoginRefused += 1;
+      socket.destroy();
+
+      return;
+    }
 
     socket.setNoDelay(true);
     socket.setKeepAlive(true, 60_000);
 
     const connection = new DeviceConnection(socket, {
       port,
+      loginDeadlineMs: this.#options.loginDeadlineMs,
+      idleTimeoutMs: this.#options.idleTimeoutMs,
+      bucket: new ByteBucket(
+        this.#options.rateBytesPerS,
+        this.#options.rateBurstBytes,
+      ),
       lookup: (imei) => registry.get(imei),
       publish,
       window: this.#window,
       stats: this.stats,
       logger,
       onLogin: (imei, conn) => {
+        this.#gate.leave(ip);
         this.#register(imei, conn);
       },
       onClose: (conn) => {
+        if (conn.imei === null) {
+          this.#gate.leave(ip);
+        }
+
         this.#remove(conn);
       },
     });
@@ -145,7 +178,7 @@ export class ParserServer {
     this.stats.connectionsOpened += 1;
 
     if (this.#window.paused) {
-      connection.pause();
+      connection.setWindowPaused(true);
     }
   }
 
@@ -191,7 +224,7 @@ export class ParserServer {
     );
 
     for (const connection of this.#connections) {
-      connection.pause();
+      connection.setWindowPaused(true);
     }
   }
 
@@ -204,7 +237,7 @@ export class ParserServer {
     );
 
     for (const connection of this.#connections) {
-      connection.resume();
+      connection.setWindowPaused(false);
     }
   }
 }
