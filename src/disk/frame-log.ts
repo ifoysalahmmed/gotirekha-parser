@@ -39,6 +39,7 @@ export class FrameLog {
   #closed: Promise<void> = Promise.resolve();
   #day: string | null = null;
   #failed = false;
+  #stopped = false;
   #timer: NodeJS.Timeout | null = null;
 
   constructor(dir: string, days: number, logger: Logger) {
@@ -61,32 +62,48 @@ export class FrameLog {
   }
 
   write(line: FrameLine): boolean {
-    if (this.#failed) {
+    if (this.#failed || this.#stopped) {
       return false;
     }
 
-    const day = line.time.toISOString().slice(0, 10);
+    try {
+      const day = line.time.toISOString().slice(0, 10);
 
-    if (day !== this.#day) {
-      this.#open(day);
-    }
+      if (day !== this.#day) {
+        this.#open(day);
+      }
 
-    if (this.#gzip === null || this.#gzip.writableLength > MAX_WAITING_BYTES) {
+      if (
+        this.#gzip === null ||
+        this.#gzip.writableLength > MAX_WAITING_BYTES
+      ) {
+        return false;
+      }
+
+      const { time, ...rest } = line;
+      const ordered = {
+        time,
+        ...rest,
+      };
+
+      this.#gzip.write(`${JSON.stringify(ordered)}\n`);
+
+      return true;
+    } catch (err) {
+      this.#logger.error(
+        {
+          err,
+        },
+        'frame log line failed',
+      );
+
       return false;
     }
-
-    const { time, ...rest } = line;
-    const ordered = {
-      time,
-      ...rest,
-    };
-
-    this.#gzip.write(`${JSON.stringify(ordered)}\n`);
-
-    return true;
   }
 
   async close(): Promise<void> {
+    this.#stopped = true;
+
     if (this.#timer !== null) {
       clearInterval(this.#timer);
       this.#timer = null;
