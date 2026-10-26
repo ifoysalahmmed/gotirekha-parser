@@ -22,6 +22,14 @@ const Config = z.object({
   REGISTRY_RELOAD_S: positive(60),
   SHUTDOWN_GRACE_MS: z.coerce.number().int().min(0).default(5000),
   STATS_INTERVAL_S: positive(60),
+  LOGIN_DEADLINE_S: positive(10),
+  PRELOGIN_MAX: positive(1000),
+  PRELOGIN_PER_IP: positive(50),
+  RATE_BYTES_PER_S: positive(1024),
+  RATE_BURST_BYTES: positive(32768),
+  IDLE_TIMEOUT_S: positive(1800),
+  FRAME_LOG_DIR: text('./frames'),
+  FRAME_LOG_DAYS: positive(30),
 });
 
 export type Config = z.infer<typeof Config>;
