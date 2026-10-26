@@ -2,6 +2,7 @@ import pg from 'pg';
 import pino from 'pino';
 import { loadConfig } from './config.ts';
 import { readPorts, Registry } from './database/registry.ts';
+import { FrameLog } from './disk/frame-log.ts';
 import { connectQueue, createPublish, ensureStream } from './queue/queue.ts';
 import { ParserServer } from './server/server.ts';
 import { takeStats } from './server/stats.ts';
@@ -77,10 +78,27 @@ void (async () => {
   }
 })();
 
+const frameLog = new FrameLog(
+  config.FRAME_LOG_DIR,
+  config.FRAME_LOG_DAYS,
+  logger,
+);
+
+await frameLog.start();
+
+logger.info(
+  {
+    dir: config.FRAME_LOG_DIR,
+    days: config.FRAME_LOG_DAYS,
+  },
+  'frame log ready',
+);
+
 const server = new ParserServer({
   host: config.PARSER_HOST,
   registry,
   publish: createPublish(nc, config.PUBLISH_TIMEOUT_MS),
+  frameLog,
   logger,
   maxPendingPublishes: config.MAX_PENDING_PUBLISHES,
   loginDeadlineMs: config.LOGIN_DEADLINE_S * 1000,
@@ -148,6 +166,7 @@ const shutdown = async (signal: string): Promise<void> => {
   clearInterval(statsTimer);
   registry.stop();
   await server.stop(config.SHUTDOWN_GRACE_MS);
+  await frameLog.close();
   await nc.drain();
   await pool.end();
 

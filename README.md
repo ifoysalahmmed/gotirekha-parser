@@ -4,13 +4,14 @@ Talks to GPS trackers: splits the TCP stream into frames, decodes them, answers 
 
 ## Structure
 
-Folders follow what the code talks to, and imports point one way: `server` uses `protocols`, `database` and `queue`; only `main.ts` imports everything.
+Folders follow what the code talks to, and imports point one way: `server` uses `protocols`, `database`, `queue` and `disk`; only `main.ts` imports everything.
 
 - `src/main.ts`: starts everything in order; `src/config.ts`: the settings, checked at startup.
 - `src/protocols/`: one folder per wire format (`gt06/`). Bytes in, results out: no network, database or queue, so it runs and is tested on its own.
 - `src/database/`: the only code that uses Postgres (the registered devices and ports).
 - `src/queue/`: the only code that uses NATS (the stream, publishing, the publish window).
-- `src/server/`: the only code that uses TCP (ports, connections, stats).
+- `src/server/`: the only code that uses TCP (ports, connections, limits, stats).
+- `src/disk/`: the only code that writes files (the frame log).
 - `src/tools/`: offline tools such as `replay.ts`; the server never imports them.
 
 Imports name the real file; there are no `index.ts` files that only re-export.
@@ -23,6 +24,10 @@ Imports name the real file; there are no `index.ts` files that only re-export.
 - `pnpm test`: run the tests with Node's own runner (Node runs the `.ts` files directly).
 - `pnpm replay <file>`: replay a capture through the framer and decoder and print a report.
 - `pnpm start`: run the parser with the settings in `.env` (copy `.env.example`).
+
+## Frame log
+
+Every byte a logged-in device sends and every reply, kept `FRAME_LOG_DAYS` days in `FRAME_LOG_DIR`: one gzip file per UTC day, `frames-YYYY-MM-DD.jsonl.gz`, one JSON line per TCP read (`dir: "in"`), reply (`"out"`), login or close (`event`, with `reason`). Read it with `zcat` (Git Bash). A restart appends to the day's file; older files are deleted by the parser at startup and every hour. If the disk falls behind, lines are dropped and counted in `frameLogDropped`; devices are never slowed by it.
 
 ## Schemas
 
