@@ -23,6 +23,7 @@ Imports name the real file; there are no `index.ts` files that only re-export.
 - `pnpm lint`: run ESLint.
 - `pnpm test`: run the tests with Node's own runner (Node runs the `.ts` files directly).
 - `pnpm replay <file>`: replay a capture or a frame log through the framer and decoder and print a report; `--frames` prints one decoded line per frame instead.
+- `pnpm send <file>`: play a capture or a frame log to a parser port (`--port`, default 7878) like a device, at the recorded pace (`--speed N` for N times faster, `--burst` for all at once); it logs in first, with `--imei` or the file's first login, and every login in the file is sent with that IMEI; `--now` moves the location dates so the latest is now, keeping the gaps.
 - `pnpm start`: run the parser with the settings in `.env` (copy `.env.example`).
 
 ## Frame log
