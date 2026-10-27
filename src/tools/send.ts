@@ -28,6 +28,9 @@ interface Line {
   pieces: Piece[];
 }
 
+const messageOf = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
 const asObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -224,7 +227,18 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const { lines, skipped } = await readLines(file);
+  let read: Awaited<ReturnType<typeof readLines>>;
+
+  try {
+    read = await readLines(file);
+  } catch (err) {
+    console.error(`cannot read ${file}: ${messageOf(err)}`);
+    process.exitCode = 1;
+
+    return;
+  }
+
+  const { lines, skipped } = read;
   const pieces = lines.flatMap((line) => line.pieces);
   const frames = pieces.filter((piece) => piece.frame);
   const logins = frames.filter(isLogin);
@@ -295,7 +309,19 @@ const main = async (): Promise<void> => {
     );
   }
 
-  const socket = await open(port);
+  let socket: Socket;
+
+  try {
+    socket = await open(port);
+  } catch (err) {
+    console.error(
+      `cannot connect to ${HOST}:${String(port)}: ${messageOf(err)} (is the parser running?)`,
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
   const replyFramer = new Gt06Framer();
   const replies = new Map<string, number>();
   let sentLines = 0;
@@ -340,9 +366,7 @@ const main = async (): Promise<void> => {
       sentLines += 1;
     }
   } catch (err) {
-    console.error(
-      `write failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    console.error(`write failed: ${messageOf(err)}`);
   }
 
   if (!socket.destroyed) {
