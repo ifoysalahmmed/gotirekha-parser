@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test": "node --test \"test/**/*.test.ts\"",
     "replay": "node src/tools/replay.ts",
+    "send": "node src/tools/send.ts",
     "start": "node --env-file=.env src/main.ts"
   },
   "author": {
