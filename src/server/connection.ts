@@ -27,6 +27,7 @@ export interface ConnectionDeps {
   stats: Stats;
   logger: Logger;
   onLogin: (imei: string, connection: DeviceConnection) => void;
+  onRefused: (imei: string) => void;
   onClose: (connection: DeviceConnection) => void;
 }
 
@@ -312,7 +313,7 @@ export class DeviceConnection {
   }
 
   #onLogin(imei: string, frame: Gt06Frame, receivedAt: Date): void {
-    const { lookup, stats, logger, onLogin } = this.#deps;
+    const { lookup, stats, logger, onLogin, onRefused } = this.#deps;
 
     if (this.#imei !== null) {
       if (imei === this.#imei) {
@@ -337,6 +338,7 @@ export class DeviceConnection {
         },
         'login refused',
       );
+      onRefused(imei);
       this.close(
         device === undefined
           ? 'IMEI not registered'
