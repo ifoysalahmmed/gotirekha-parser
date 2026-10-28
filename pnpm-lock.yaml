@@ -209,8 +209,8 @@ importers:
   .:
     dependencies:
       '@gotirekha/schemas':
-        specifier: github:ifoysalahmmed/gotirekha-schemas#v0.2.0
-        version: https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/41207bc45dce4dc65031ae2dff24a1dac21a2856
+        specifier: github:ifoysalahmmed/gotirekha-schemas#v0.3.0
+        version: https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/8e1ca93e774aec52221fa89be54899bbb9b5cd16
       '@nats-io/jetstream':
         specifier: 3.4.0
         version: 3.4.0
@@ -293,9 +293,9 @@ packages:
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  '@gotirekha/schemas@https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/41207bc45dce4dc65031ae2dff24a1dac21a2856':
-    resolution: {gitHosted: true, integrity: sha512-6TFCWcHOV8lCwR2cC0RYMCHXIDKV2QjB+2OJuaLGI+RfLo+Z2c53WGMl4axPRaAHwjwNW+MuAAxkzNTDrHN5Nw==, tarball: https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/41207bc45dce4dc65031ae2dff24a1dac21a2856}
-    version: 0.2.0
+  '@gotirekha/schemas@https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/8e1ca93e774aec52221fa89be54899bbb9b5cd16':
+    resolution: {gitHosted: true, integrity: sha512-7yN5aFYFP8MRBM4u+L+zv/jbudAaFpz0pf2iT+jqdqv1Peo4llZ/01MWhkKT1QPF+fptkka5lDSNDeBscoGCTg==, tarball: https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/8e1ca93e774aec52221fa89be54899bbb9b5cd16}
+    version: 0.3.0
     engines: {node: '>=24'}
 
   '@humanfs/core@0.19.2':
@@ -847,7 +847,7 @@ snapshots:
       '@eslint/core': 1.2.1
       levn: 0.4.1
 
-  '@gotirekha/schemas@https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/41207bc45dce4dc65031ae2dff24a1dac21a2856':
+  '@gotirekha/schemas@https://codeload.github.com/ifoysalahmmed/gotirekha-schemas/tar.gz/8e1ca93e774aec52221fa89be54899bbb9b5cd16':
     dependencies:
       zod: 4.6.7
 
