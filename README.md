@@ -10,7 +10,7 @@ Folders follow what the code talks to, and imports point one way: `server` uses 
 - `src/protocols/`: one folder per wire format (`gt06/`). Bytes in, results out: no network, database or queue, so it runs and is tested on its own.
 - `src/database/`: the only code that uses Postgres (the registered devices and ports).
 - `src/queue/`: the only code that uses NATS (the stream, publishing, the publish window).
-- `src/server/`: the only code that uses TCP (ports, connections, limits, stats).
+- `src/server/`: the only code that uses TCP (ports, connections, limits, stats, refused-login reports).
 - `src/disk/`: the only code that writes files (the frame log).
 - `src/tools/`: offline tools such as `replay.ts`; the server never imports them.
 
