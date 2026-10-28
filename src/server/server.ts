@@ -8,12 +8,14 @@ import type { Publish } from '../queue/queue.ts';
 import { ByteBucket } from './byte-bucket.ts';
 import { DeviceConnection } from './connection.ts';
 import { PreLoginGate } from './pre-login.ts';
+import type { RefusedLogins } from './refused-logins.ts';
 import { createStats, type Stats } from './stats.ts';
 
 export interface ParserServerOptions {
   host: string;
   registry: Registry;
   publish: Publish;
+  refused: RefusedLogins;
   frameLog: FrameLog;
   logger: Logger;
   maxPendingPublishes: number;
@@ -137,7 +139,7 @@ export class ParserServer {
   }
 
   #accept(socket: Socket, port: number): void {
-    const { registry, publish, logger } = this.#options;
+    const { registry, publish, refused, logger } = this.#options;
     const ip = socket.remoteAddress ?? 'unknown';
 
     if (!this.#gate.tryEnter(ip)) {
@@ -167,6 +169,9 @@ export class ParserServer {
       onLogin: (imei, conn) => {
         this.#gate.leave(ip);
         this.#register(imei, conn);
+      },
+      onRefused: (imei) => {
+        refused.add(imei, port, ip);
       },
       onClose: (conn) => {
         if (conn.imei === null) {

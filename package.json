@@ -31,7 +31,7 @@
   },
   "packageManager": "pnpm@12.15.0",
   "dependencies": {
-    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.2.0",
+    "@gotirekha/schemas": "github:ifoysalahmmed/gotirekha-schemas#v0.3.0",
     "@nats-io/jetstream": "3.4.0",
     "@nats-io/transport-node": "3.4.0",
     "pg": "8.23.1",

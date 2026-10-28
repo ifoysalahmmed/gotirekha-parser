@@ -4,6 +4,7 @@ import { loadConfig } from './config.ts';
 import { readPorts, Registry } from './database/registry.ts';
 import { FrameLog } from './disk/frame-log.ts';
 import { connectQueue, createPublish, ensureStream } from './queue/queue.ts';
+import { RefusedLogins } from './server/refused-logins.ts';
 import { ParserServer } from './server/server.ts';
 import { takeStats } from './server/stats.ts';
 
@@ -94,10 +95,14 @@ logger.info(
   'frame log ready',
 );
 
+const publish = createPublish(nc, config.PUBLISH_TIMEOUT_MS);
+const refused = new RefusedLogins(publish, logger);
+
 const server = new ParserServer({
   host: config.PARSER_HOST,
   registry,
-  publish: createPublish(nc, config.PUBLISH_TIMEOUT_MS),
+  publish,
+  refused,
   frameLog,
   logger,
   maxPendingPublishes: config.MAX_PENDING_PUBLISHES,
@@ -132,6 +137,8 @@ for (const { port, protocol } of ports) {
   );
 }
 
+refused.start();
+
 const statsTimer = setInterval(() => {
   logger.info(
     {
@@ -141,6 +148,7 @@ const statsTimer = setInterval(() => {
       pending: server.pendingPublishes,
       registered: registry.size,
       ...takeStats(server.stats),
+      ...refused.takeStats(),
     },
     'stats',
   );
@@ -166,6 +174,7 @@ const shutdown = async (signal: string): Promise<void> => {
   clearInterval(statsTimer);
   registry.stop();
   await server.stop(config.SHUTDOWN_GRACE_MS);
+  await refused.stop();
   await frameLog.close();
   await nc.drain();
   await pool.end();
